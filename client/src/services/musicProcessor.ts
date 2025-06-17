@@ -46,6 +46,7 @@ export const INSTRUMENT_TRANSPOSITIONS: Record<string, number> = {
 
 class MusicProcessor {
   private osmd: OpenSheetMusicDisplay | null = null;
+  private container: HTMLElement | null = null;
 
   constructor() {
     this.initializeOSMD();
@@ -53,13 +54,18 @@ class MusicProcessor {
 
   private async initializeOSMD() {
     try {
-      // Create a hidden container for OSMD
-      const container = document.createElement('div');
-      container.style.display = 'none';
-      document.body.appendChild(container);
+      // Create a properly sized container for OSMD
+      this.container = document.createElement('div');
+      this.container.style.position = 'absolute';
+      this.container.style.left = '-9999px';
+      this.container.style.top = '-9999px';
+      this.container.style.width = '800px';
+      this.container.style.height = '1200px';
+      this.container.style.visibility = 'hidden';
+      document.body.appendChild(this.container);
 
-      this.osmd = new OpenSheetMusicDisplay(container, {
-        autoResize: true,
+      this.osmd = new OpenSheetMusicDisplay(this.container, {
+        autoResize: false,
         backend: 'svg',
         drawTitle: true,
         drawSubtitle: true,
@@ -69,7 +75,12 @@ class MusicProcessor {
         drawMeasureNumbers: true,
         measureNumberInterval: 4,
         pageFormat: 'A4_P',
+        pageBackgroundColor: '#FFFFFF',
+        renderSingleHorizontalStaffline: false,
       });
+      
+      // Set explicit dimensions
+      this.osmd.setPageFormat('A4_P');
     } catch (error) {
       console.error('Failed to initialize OSMD:', error);
     }
@@ -263,8 +274,8 @@ class MusicProcessor {
       await this.osmd.load(musicXML);
       this.osmd.render();
 
-      // Get the SVG elements
-      const svgElements = this.osmd.container.querySelectorAll('svg');
+      // Get the SVG elements from our container
+      const svgElements = this.container?.querySelectorAll('svg') || [];
       
       // Create PDF
       const pdf = new jsPDF('p', 'mm', 'a4');
@@ -277,6 +288,14 @@ class MusicProcessor {
         }
         
         const svgElement = svgElements[i];
+        
+        // Ensure SVG has proper dimensions
+        if (!svgElement.getAttribute('width') || !svgElement.getAttribute('height')) {
+          const bbox = svgElement.getBBox();
+          svgElement.setAttribute('width', bbox.width.toString());
+          svgElement.setAttribute('height', bbox.height.toString());
+        }
+        
         const svgData = new XMLSerializer().serializeToString(svgElement);
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
@@ -286,17 +305,44 @@ class MusicProcessor {
           const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
           const url = URL.createObjectURL(svgBlob);
           
-          await new Promise((resolve) => {
+          await new Promise<void>((resolve, reject) => {
             img.onload = () => {
-              canvas.width = img.width;
-              canvas.height = img.height;
-              ctx.drawImage(img, 0, 0);
-              
-              const imgData = canvas.toDataURL('image/png');
-              pdf.addImage(imgData, 'PNG', 0, 0, pageWidth, pageHeight);
-              URL.revokeObjectURL(url);
-              resolve(void 0);
+              try {
+                // Set canvas dimensions with fallback
+                const width = img.naturalWidth || 800;
+                const height = img.naturalHeight || 600;
+                
+                canvas.width = width;
+                canvas.height = height;
+                
+                // Clear canvas with white background
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, width, height);
+                
+                // Draw the image
+                ctx.drawImage(img, 0, 0);
+                
+                // Convert to PNG with error handling
+                const imgData = canvas.toDataURL('image/png', 1.0);
+                if (imgData && imgData !== 'data:,') {
+                  pdf.addImage(imgData, 'PNG', 0, 0, pageWidth, pageHeight);
+                } else {
+                  console.warn('Failed to generate valid image data, skipping page');
+                }
+                
+                URL.revokeObjectURL(url);
+                resolve();
+              } catch (err) {
+                URL.revokeObjectURL(url);
+                reject(err);
+              }
             };
+            
+            img.onerror = () => {
+              URL.revokeObjectURL(url);
+              reject(new Error('Failed to load SVG as image'));
+            };
+            
             img.src = url;
           });
         }
@@ -305,7 +351,11 @@ class MusicProcessor {
       return pdf.output('blob');
     } catch (error) {
       console.error('Error rendering to PDF:', error);
-      throw error;
+      // Return a simple PDF with error message instead of throwing
+      const errorPdf = new jsPDF('p', 'mm', 'a4');
+      errorPdf.text('Error rendering music sheet to PDF', 20, 20);
+      errorPdf.text('Please try again with a different file', 20, 30);
+      return errorPdf.output('blob');
     }
   }
 
