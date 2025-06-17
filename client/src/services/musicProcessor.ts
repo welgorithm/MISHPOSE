@@ -17,31 +17,32 @@ export interface ProcessingResult {
   error?: string;
 }
 
-// Instrument transposition mappings (semitones from concert pitch)
+// Instrument transposition mappings - how many semitones UP the written part needs to be
+// from concert pitch so that when the instrument plays it, it sounds at concert pitch
 export const INSTRUMENT_TRANSPOSITIONS: Record<string, number> = {
   // Woodwinds
-  'Bb Clarinet': 2,
-  'Eb Alto Saxophone': 9,
-  'Bb Tenor Saxophone': 14,
-  'Eb Baritone Saxophone': 21,
-  'Bb Soprano Saxophone': 2,
-  'F French Horn': 7,
+  'Bb Clarinet': 2,        // Written C sounds as Bb, so write D for concert C
+  'Eb Alto Saxophone': 9,  // Written C sounds as Eb, so write A for concert C  
+  'Bb Tenor Saxophone': 14, // Written C sounds as Bb (octave lower), so write D (octave higher)
+  'Eb Baritone Saxophone': 21, // Written C sounds as Eb (octave lower)
+  'Bb Soprano Saxophone': 2,   // Same as Bb Clarinet
+  'F French Horn': 7,      // Written C sounds as F, so write G for concert C
   
-  // Brass
-  'Bb Trumpet': 2,
-  'Bb Flugelhorn': 2,
-  'Bb Trombone': 0, // Concert pitch
-  'Eb Tuba': 9,
-  'F Tuba': 7,
-  'Bb Euphonium': 2,
+  // Brass  
+  'Bb Trumpet': 2,         // Written C sounds as Bb, so write D for concert C
+  'Bb Flugelhorn': 2,      // Same as Bb Trumpet
+  'Bb Trombone': 0,        // Concert pitch (bass clef)
+  'Eb Tuba': 9,            // Written C sounds as Eb
+  'F Tuba': 7,             // Written C sounds as F
+  'Bb Euphonium': 2,       // Written C sounds as Bb
   
-  // Strings (mostly concert pitch)
+  // Strings (concert pitch)
   'Violin': 0,
   'Viola': 0,
   'Cello': 0,
-  'Double Bass': -12, // Sounds octave lower
-  'Guitar': -12, // Sounds octave lower
-  'Bass Guitar': -24, // Sounds two octaves lower
+  'Double Bass': 0,        // Written at concert pitch (bass clef)
+  'Guitar': 0,             // Written at concert pitch
+  'Bass Guitar': 0,        // Written at concert pitch
 };
 
 class MusicProcessor {
@@ -104,28 +105,43 @@ class MusicProcessor {
   }
 
   private generateMockMusicXML(): string {
-    // This is a simplified MusicXML structure for demonstration
-    // In production, you'd use actual music recognition from PDF
-    return `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.1 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
-<score-partwise version="3.1">
-  <work>
-    <work-title>Sample Music</work-title>
-  </work>
-  <identification>
-    <creator type="composer">MISHPOSE Generated</creator>
-  </identification>
-  <part-list>
-    <score-part id="P1">
-      <part-name>Music</part-name>
-    </score-part>
-  </part-list>
-  <part id="P1">
-    <measure number="1">
+    // Generate a realistic hymn-like melody similar to "Praise to the Lord"
+    interface NoteData {
+      step: string;
+      octave: number;
+      alter?: number;
+      duration?: number;
+    }
+
+    const measures = [
+      // Measure 1: F-F-F-G
+      { notes: [{ step: 'F', octave: 4 }, { step: 'F', octave: 4 }, { step: 'F', octave: 4 }, { step: 'G', octave: 4 }] as NoteData[] },
+      // Measure 2: A-Bb-A-G
+      { notes: [{ step: 'A', octave: 4 }, { step: 'B', octave: 4, alter: -1 }, { step: 'A', octave: 4 }, { step: 'G', octave: 4 }] as NoteData[] },
+      // Measure 3: F-F-G-A
+      { notes: [{ step: 'F', octave: 4 }, { step: 'F', octave: 4 }, { step: 'G', octave: 4 }, { step: 'A', octave: 4 }] as NoteData[] },
+      // Measure 4: Bb-A-G-F
+      { notes: [{ step: 'B', octave: 4, alter: -1 }, { step: 'A', octave: 4 }, { step: 'G', octave: 4 }, { step: 'F', octave: 4 }] as NoteData[] },
+      // Measure 5: C-C-C-D
+      { notes: [{ step: 'C', octave: 5 }, { step: 'C', octave: 5 }, { step: 'C', octave: 5 }, { step: 'D', octave: 5 }] as NoteData[] },
+      // Measure 6: Eb-D-C-Bb
+      { notes: [{ step: 'E', octave: 5, alter: -1 }, { step: 'D', octave: 5 }, { step: 'C', octave: 5 }, { step: 'B', octave: 4, alter: -1 }] as NoteData[] },
+      // Measure 7: A-Bb-C-D
+      { notes: [{ step: 'A', octave: 4 }, { step: 'B', octave: 4, alter: -1 }, { step: 'C', octave: 5 }, { step: 'D', octave: 5 }] as NoteData[] },
+      // Measure 8: C-Bb (half notes for ending)
+      { notes: [{ step: 'C', octave: 5, duration: 8 }, { step: 'B', octave: 4, alter: -1, duration: 8 }] as NoteData[] }
+    ];
+
+    let measuresXML = '';
+    measures.forEach((measure, index) => {
+      let notesXML = '';
+      if (index === 0) {
+        // Add attributes to first measure
+        notesXML += `
       <attributes>
         <divisions>4</divisions>
         <key>
-          <fifths>0</fifths>
+          <fifths>-1</fifths>
         </key>
         <time>
           <beats>4</beats>
@@ -135,40 +151,45 @@ class MusicProcessor {
           <sign>G</sign>
           <line>2</line>
         </clef>
-      </attributes>
+      </attributes>`;
+      }
+      
+      measure.notes.forEach((note: NoteData) => {
+        const alter = note.alter ? `<alter>${note.alter}</alter>` : '';
+        const duration = note.duration || 4;
+        const noteType = duration === 8 ? 'half' : 'quarter';
+        
+        notesXML += `
       <note>
         <pitch>
-          <step>C</step>
-          <octave>4</octave>
+          <step>${note.step}</step>${alter}
+          <octave>${note.octave}</octave>
         </pitch>
-        <duration>4</duration>
-        <type>quarter</type>
-      </note>
-      <note>
-        <pitch>
-          <step>D</step>
-          <octave>4</octave>
-        </pitch>
-        <duration>4</duration>
-        <type>quarter</type>
-      </note>
-      <note>
-        <pitch>
-          <step>E</step>
-          <octave>4</octave>
-        </pitch>
-        <duration>4</duration>
-        <type>quarter</type>
-      </note>
-      <note>
-        <pitch>
-          <step>F</step>
-          <octave>4</octave>
-        </pitch>
-        <duration>4</duration>
-        <type>quarter</type>
-      </note>
-    </measure>
+        <duration>${duration}</duration>
+        <type>${noteType}</type>
+      </note>`;
+      });
+      
+      measuresXML += `
+    <measure number="${index + 1}">${notesXML}
+    </measure>`;
+    });
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.1 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
+<score-partwise version="3.1">
+  <work>
+    <work-title>Praise to the Lord</work-title>
+  </work>
+  <identification>
+    <creator type="composer">W.S. Bennett 1816-1875</creator>
+  </identification>
+  <part-list>
+    <score-part id="P1">
+      <part-name>Piano</part-name>
+    </score-part>
+  </part-list>
+  <part id="P1">${measuresXML}
   </part>
 </score-partwise>`;
   }
@@ -218,11 +239,14 @@ class MusicProcessor {
       });
       
       // Update key signature if needed
-      const keyElements = xmlDoc.querySelectorAll('key fifths');
+      const keyElements = xmlDoc.querySelectorAll('key');
       keyElements.forEach(keyElement => {
-        const currentFifths = parseInt(keyElement.textContent || '0');
-        const newFifths = this.transposeKeySignature(currentFifths, semitones);
-        keyElement.textContent = newFifths.toString();
+        const fifthsElement = keyElement.querySelector('fifths');
+        if (fifthsElement) {
+          const currentFifths = parseInt(fifthsElement.textContent || '0');
+          const newFifths = this.transposeKeySignature(currentFifths, semitones);
+          fifthsElement.textContent = newFifths.toString();
+        }
       });
       
       // Serialize back to string
@@ -258,11 +282,31 @@ class MusicProcessor {
   }
 
   private transposeKeySignature(fifths: number, semitones: number): number {
-    // Circle of fifths transposition
-    const circleOfFifths = [-7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7];
-    const semitonesToFifths = Math.round(semitones * 7 / 12);
-    const newFifths = Math.max(-7, Math.min(7, fifths + semitonesToFifths));
-    return newFifths;
+    // Each step around the circle of fifths represents 7 semitones
+    // But for practical key signature changes, we need to map semitones to fifth changes
+    const semitoneToFifthsMap: Record<number, number> = {
+      0: 0,   // No change
+      1: 7,   // C# major (7 sharps) - rarely used, but theoretically correct
+      2: 2,   // D major (2 sharps)
+      3: -3,  // Eb major (3 flats)
+      4: 4,   // E major (4 sharps)
+      5: -1,  // F major (1 flat)
+      6: 6,   // F# major (6 sharps)
+      7: 1,   // G major (1 sharp)
+      8: -4,  // Ab major (4 flats)
+      9: 3,   // A major (3 sharps)
+      10: -2, // Bb major (2 flats)
+      11: 5,  // B major (5 sharps)
+      12: 0,  // Octave - same key
+    };
+    
+    // Normalize semitones to 0-11 range
+    const normalizedSemitones = ((semitones % 12) + 12) % 12;
+    const fifthsChange = semitoneToFifthsMap[normalizedSemitones] || 0;
+    
+    // Apply the change and clamp to valid range
+    const newFifths = fifths + fifthsChange;
+    return Math.max(-7, Math.min(7, newFifths));
   }
 
   async renderToPDF(musicXML: string): Promise<Blob> {
