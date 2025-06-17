@@ -290,10 +290,17 @@ class MusicProcessor {
         const svgElement = svgElements[i];
         
         // Ensure SVG has proper dimensions
-        if (!svgElement.getAttribute('width') || !svgElement.getAttribute('height')) {
-          const bbox = svgElement.getBBox();
-          svgElement.setAttribute('width', bbox.width.toString());
-          svgElement.setAttribute('height', bbox.height.toString());
+        const svgEl = svgElement as SVGSVGElement;
+        if (!svgEl.getAttribute('width') || !svgEl.getAttribute('height')) {
+          try {
+            const bbox = svgEl.getBBox();
+            svgEl.setAttribute('width', bbox.width.toString());
+            svgEl.setAttribute('height', bbox.height.toString());
+          } catch (error) {
+            // Fallback if getBBox fails
+            svgEl.setAttribute('width', '800');
+            svgEl.setAttribute('height', '600');
+          }
         }
         
         const svgData = new XMLSerializer().serializeToString(svgElement);
