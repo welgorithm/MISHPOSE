@@ -282,31 +282,25 @@ class MusicProcessor {
   }
 
   private transposeKeySignature(fifths: number, semitones: number): number {
-    // Each step around the circle of fifths represents 7 semitones
-    // But for practical key signature changes, we need to map semitones to fifth changes
-    const semitoneToFifthsMap: Record<number, number> = {
-      0: 0,   // No change
-      1: 7,   // C# major (7 sharps) - rarely used, but theoretically correct
-      2: 2,   // D major (2 sharps)
-      3: -3,  // Eb major (3 flats)
-      4: 4,   // E major (4 sharps)
-      5: -1,  // F major (1 flat)
-      6: 6,   // F# major (6 sharps)
-      7: 1,   // G major (1 sharp)
-      8: -4,  // Ab major (4 flats)
-      9: 3,   // A major (3 sharps)
-      10: -2, // Bb major (2 flats)
-      11: 5,  // B major (5 sharps)
-      12: 0,  // Octave - same key
-    };
+    // Circle of fifths: each fifth = 7 semitones
+    // Convert semitones to fifths using the circle of fifths relationship
+    const semitoneToFifths = [0, 7, 2, -3, 4, -1, 6, 1, -4, 3, -2, 5]; // for 0-11 semitones
     
     // Normalize semitones to 0-11 range
     const normalizedSemitones = ((semitones % 12) + 12) % 12;
-    const fifthsChange = semitoneToFifthsMap[normalizedSemitones] || 0;
+    const fifthsChange = semitoneToFifths[normalizedSemitones];
     
-    // Apply the change and clamp to valid range
-    const newFifths = fifths + fifthsChange;
-    return Math.max(-7, Math.min(7, newFifths));
+    // Apply the change and keep within valid range (-7 to 7)
+    let newFifths = fifths + fifthsChange;
+    
+    // Handle edge cases by finding enharmonic equivalent
+    if (newFifths > 7) {
+      newFifths -= 12;
+    } else if (newFifths < -7) {
+      newFifths += 12;
+    }
+    
+    return newFifths;
   }
 
   async renderToPDF(musicXML: string): Promise<Blob> {
